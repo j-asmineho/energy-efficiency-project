@@ -13,6 +13,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
 
 ##################################
 # Load and Preprocess the Data
@@ -28,22 +29,52 @@ Z = ee_data.loc[:, ['Cooling_Load']] # target variable for cooling load
 
 print(X, Y, Z)
 
-# Set parameters for both models
-heating_params = {
-    "n_estimators": 550,
-    "max_depth": 4,
-    "min_samples_split": 5,
-    "learning_rate": 0.01,
-    "loss": "squared_error",
+##################################
+# Setting hyperparameters 
+##################################
+
+# Define parameter grids for Grid Search
+
+heating_param_grid = {
+    'n_estimators': [100, 200, 300, 550],
+    'max_depth': [3, 4, 5],
+    'learning_rate': [0.01, 0.1, 0.2],
+    "min_samples_split": [3,4,5],
+    "loss": "squared_error"
 }
 
-cooling_params = {
-    "n_estimators": 700,
-    "max_depth": 7,
-    "min_samples_split": 4,
-    "learning_rate": 0.02,
-    "loss": "squared_error",
+cooling_param_grid = {
+    'n_estimators': [100, 200, 300, 700],
+    'max_depth': [5, 6, 7],
+    'learning_rate': [0.01, 0.02, 0.2],
+    'min_samples_split': [3,4,5],
+    'loss': "squared_error"
 }
+
+# Set up GridSearchCV for heating load model
+heating_reg = GradientBoostingRegressor(loss='squared_error')
+grid_search_heating = GridSearchCV(estimator=heating_reg, param_grid=heating_param_grid, 
+                                    cv=n_folds, scoring='neg_mean_squared_error', n_jobs=-1)
+grid_search_heating.fit(X, Y)
+
+# Get the best parameters and model for heating load
+heating_params = grid_search_heating.best_params_
+heating_model = grid_search_heating.best_estimator_
+
+print("Best parameters for heating model:", best_heating_params)
+
+# Set up GridSearchCV for cooling load model
+cooling_reg = GradientBoostingRegressor(loss='squared_error')
+grid_search_cooling = GridSearchCV(estimator=cooling_reg, param_grid=cooling_param_grid, 
+                                    cv=n_folds, scoring='neg_mean_squared_error', n_jobs=-1)
+grid_search_cooling.fit(X, Z)
+
+# Get the best parameters and model for cooling load
+cooling_params = grid_search_cooling.best_params_
+cooling_model = grid_search_cooling.best_estimator_
+
+print("Best parameters for cooling model:", best_cooling_params)
+
 
 ##################################
 # Cross-Validation 
@@ -67,6 +98,7 @@ print(f"Cross-validated MSE for Cooling Load: {cooling_cv_mse:.4f}")
 ##################################
 # Splitting into Features + Targets
 ##################################
+
 X_train, X_test, Y_train, Y_test, Z_train, Z_test = train_test_split(
     X, Y, Z, test_size=0.2, random_state=42
 )
