@@ -1,10 +1,7 @@
+##################################
+# Import libraries 
+##################################
 
-
-#need to install necessary libraries using pip (package management system)
-#the software and libraries are stored in a repository called PyPi (Python package index)
-#did it in bash 
-
-#now we need to import the libraries 
 import numpy as np  
 import pandas as pd 
 import matplotlib.pyplot as plt
@@ -15,27 +12,23 @@ from sklearn import datasets, ensemble
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
 
-#now we need to load and preprocess the energy efficiency dataset using Pandas
+##################################
+# Load and Preprocess the Data
+##################################
 
 ee_data = pd.read_csv(r'/Users/jasmineho/Desktop/energy efficiency project/energy_efficiency_data.csv')
 print(ee_data)
 
+# Split the features and target variables into X, Y, and Z
+X = ee_data.drop(['Heating_Load', 'Cooling_Load'], axis=1) # 8 features used to predict
+Y = ee_data.loc[:, ['Heating_Load']] # target variable for heating load
+Z = ee_data.loc[:, ['Cooling_Load']] # target variable for cooling load
 
-# split the feautures and target variable into x and y
-X = ee_data.drop(['Heating_Load', 'Cooling_Load'], axis = 1) #8 features used to predict
-Y = ee_data.loc[:,['Heating_Load']] # target variables we are trying to predict
-Z = ee_data.loc[:,['Cooling_Load']] 
+print(X, Y, Z)
 
-print(X,Y,Z)
-#split into training and testing 
-#we will do 80% training
-X_train, X_test, Y_train, Y_test, Z_train, Z_test = train_test_split(
-    X,Y,Z, test_size = 0.2, random_state = 42 
-) #42 is recommended to use because it keeps the test set the same
-
-#now we set parameters, play with them to see how the results change
-
+# Set parameters for both models
 heating_params = {
     "n_estimators": 550,
     "max_depth": 4,
@@ -45,22 +38,48 @@ heating_params = {
 }
 
 cooling_params = {
-    "n_estimators": 10000,
+    "n_estimators": 700,
     "max_depth": 7,
     "min_samples_split": 4,
     "learning_rate": 0.02,
     "loss": "squared_error",
 }
 
-#fit regression model
+##################################
+# Cross-Validation 
+##################################
 
+# Set number of cross-validation folds
+n_folds = 5 
+
+# Heating load model cross-validation
 heating_reg = ensemble.GradientBoostingRegressor(**heating_params)
-heating_reg.fit(X_train,Y_train)
+heating_cv_scores = cross_val_score(heating_reg, X, Y, cv=n_folds, scoring='neg_mean_squared_error')
+heating_cv_mse = -heating_cv_scores.mean()  # Negate to get positive MSE
+print(f"Cross-validated MSE for Heating Load: {heating_cv_mse:.4f}")
+
+# Cooling load model cross-validation
 cooling_reg = ensemble.GradientBoostingRegressor(**cooling_params)
-cooling_reg.fit(X_train,Z_train)
+cooling_cv_scores = cross_val_score(cooling_reg, X, Z, cv=n_folds, scoring='neg_mean_squared_error')
+cooling_cv_mse = -cooling_cv_scores.mean()  # Negate to get positive MSE
+print(f"Cross-validated MSE for Cooling Load: {cooling_cv_mse:.4f}")
 
-#see the mse on the test data
+##################################
+# Splitting into Features + Targets
+##################################
+X_train, X_test, Y_train, Y_test, Z_train, Z_test = train_test_split(
+    X, Y, Z, test_size=0.2, random_state=42
+)
 
+# Fit the models on training data 
+heating_reg.fit(X_train, Y_train)
+cooling_reg.fit(X_train, Z_train)
+
+##################################
+# Evaluating the Model
+##################################
+
+# Calculate mean squared error on the test set 
 heating_mse = mean_squared_error(Y_test, heating_reg.predict(X_test))
 cooling_mse = mean_squared_error(Z_test, cooling_reg.predict(X_test))
 
@@ -68,10 +87,11 @@ print("The mean squared error on the heating test set is {:.4f}".format(heating_
 print("The mean squared error on the cooling test set is {:.4f}".format(cooling_mse))
 
 
-#plotting training deviance
+##################################
+# Plotting Training Deviance
+##################################
 
-
-#heating load plot
+# Heating load plot
 test_score = np.zeros((heating_params["n_estimators"],), dtype=np.float64)
 for i, Y_pred in enumerate(heating_reg.staged_predict(X_test)):
     test_score[i] = mean_squared_error(Y_test, Y_pred)
@@ -94,7 +114,7 @@ plt.ylabel("Deviance")
 fig.tight_layout()
 plt.show()
 
-#cooling load plot 
+# Cooling load plot 
 
 test_score = np.zeros((cooling_params["n_estimators"],), dtype=np.float64)
 for i, Z_pred in enumerate(cooling_reg.staged_predict(Z_test)):
