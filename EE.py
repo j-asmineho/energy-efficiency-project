@@ -22,12 +22,21 @@ from sklearn.model_selection import GridSearchCV
 ee_data = pd.read_csv(r'/Users/jasmineho/Desktop/energy efficiency project/energy_efficiency_data.csv')
 print(ee_data)
 
+
+##################################
+# Splitting into Features + Targets
+##################################
+
 # Split the features and target variables into X, Y, and Z
 X = ee_data.drop(['Heating_Load', 'Cooling_Load'], axis=1) # 8 features used to predict
 Y = ee_data.loc[:, ['Heating_Load']] # target variable for heating load
 Z = ee_data.loc[:, ['Cooling_Load']] # target variable for cooling load
 
 print(X, Y, Z)
+
+X_train, X_test, Y_train, Y_test, Z_train, Z_test = train_test_split(
+    X, Y, Z, test_size=0.2, random_state=42
+)
 
 ##################################
 # Setting hyperparameters 
@@ -75,6 +84,23 @@ cooling_model = grid_search_cooling.best_estimator_
 
 print("Best parameters for cooling model:", best_cooling_params)
 
+##################################
+# Fit the models  
+##################################
+
+heating_reg.fit(X_train, Y_train)
+cooling_reg.fit(X_train, Z_train)
+
+##################################
+# Evaluating the Model
+##################################
+
+# Calculate mean squared error on the test set 
+heating_mse = mean_squared_error(Y_test, heating_reg.predict(X_test))
+cooling_mse = mean_squared_error(Z_test, cooling_reg.predict(X_test))
+
+print("The mean squared error on the heating test set is {:.4f}".format(heating_mse))
+print("The mean squared error on the cooling test set is {:.4f}".format(cooling_mse))
 
 ##################################
 # Cross-Validation 
@@ -94,29 +120,6 @@ cooling_reg = ensemble.GradientBoostingRegressor(**cooling_params)
 cooling_cv_scores = cross_val_score(cooling_reg, X, Z, cv=n_folds, scoring='neg_mean_squared_error')
 cooling_cv_mse = -cooling_cv_scores.mean()  # Negate to get positive MSE
 print(f"Cross-validated MSE for Cooling Load: {cooling_cv_mse:.4f}")
-
-##################################
-# Splitting into Features + Targets
-##################################
-
-X_train, X_test, Y_train, Y_test, Z_train, Z_test = train_test_split(
-    X, Y, Z, test_size=0.2, random_state=42
-)
-
-# Fit the models on training data 
-heating_reg.fit(X_train, Y_train)
-cooling_reg.fit(X_train, Z_train)
-
-##################################
-# Evaluating the Model
-##################################
-
-# Calculate mean squared error on the test set 
-heating_mse = mean_squared_error(Y_test, heating_reg.predict(X_test))
-cooling_mse = mean_squared_error(Z_test, cooling_reg.predict(X_test))
-
-print("The mean squared error on the heating test set is {:.4f}".format(heating_mse))
-print("The mean squared error on the cooling test set is {:.4f}".format(cooling_mse))
 
 
 ##################################
